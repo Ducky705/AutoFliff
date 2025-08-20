@@ -1,0 +1,61 @@
+name: Fliff Betting Bot
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Every hour at the top of the hour
+  workflow_dispatch:  # Allow manual runs
+  repository_dispatch:
+    types: [manual_run]
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    if: github.repository == 'Ducky705/AutoFliff'  # Only run on the main repository
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        playwright install chromium
+
+    - name: Run Fliff Bot
+      env:
+        FLIFF_USERNAME: ${{ secrets.FLIFF_USERNAME }}
+        FLIFF_PASSWORD: ${{ secrets.FLIFF_PASSWORD }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GEOLOCATION_LATITUDE: ${{ secrets.GEOLOCATION_LATITUDE || '40.7128' }}
+        GEOLOCATION_LONGITUDE: ${{ secrets.GEOLOCATION_LONGITUDE || '-74.0060' }}
+      run: |
+        python main.py
+
+    - name: Upload screenshots on failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: error-screenshots
+        path: screenshots/
+        retention-days: 7
+
+    - name: Cleanup screenshots
+      if: always()
+      run: |
+        rm -rf screenshots/
